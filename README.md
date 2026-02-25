@@ -126,8 +126,6 @@ php artisan serve
 # ⚠️ Important: Use localhost, not IP addresses (e.g., --host=0.0.0.0)
 # API requests may fail with IP-based URLs due to CORS/security restrictions
 
-# Optional: Run queue worker in another terminal
-php artisan queue:work
 
 # Optional: Watch logs
 php artisan pail
