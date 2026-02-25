@@ -123,6 +123,9 @@ npm run dev    # Development with HMR
 # Start server
 php artisan serve
 
+# ⚠️ Important: Use localhost, not IP addresses (e.g., --host=0.0.0.0)
+# API requests may fail with IP-based URLs due to CORS/security restrictions
+
 # Optional: Run queue worker in another terminal
 php artisan queue:work
 
@@ -562,6 +565,24 @@ php artisan optimize:clear
    >>> use Romansh\LaravelCreem\Facades\Creem;
    >>> Creem::products()->all();
    ```
+
+### API/CORS Errors with Custom Host
+
+**Issue:** API requests fail when using `php artisan serve --host=0.0.0.0` or IP addresses
+
+**Solution:**
+Always use `localhost` for local development:
+```bash
+# ✅ Correct
+php artisan serve
+# Access: http://localhost:8000
+
+# ❌ Avoid
+php artisan serve --host=0.0.0.0
+php artisan serve --host=192.168.1.100
+```
+
+**Reason:** API providers may reject requests from IP-based URLs due to CORS policies and security restrictions. Use `localhost` to ensure proper API communication.
 
 ### Docker Build Issues
 
