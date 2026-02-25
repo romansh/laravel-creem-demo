@@ -104,12 +104,10 @@ class ConfigurationForm extends Component
     {
         $appUrl = config('app.url', request()->getSchemeAndHttpHost());
         $tunnel = env('CLOUDFLARED_TUNNEL_DOMAIN');
-        
         // If app runs on localhost and Cloudflare Tunnel is configured, use tunnel domain
         $base = (str_contains($appUrl, 'localhost') && $tunnel)
             ? rtrim($tunnel, '/')
             : rtrim($appUrl, '/');
-            
         return $base . '/creem/hook/' . $cacheKey;
     }
 
