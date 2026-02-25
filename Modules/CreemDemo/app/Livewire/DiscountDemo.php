@@ -29,18 +29,19 @@ class DiscountDemo extends Component
 
     public function mount(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
         $this->checkConfig();
-        $this->discounts = session("demo_discounts_{$this->profile}", []);
+        $sessionId = session()->getId();
+        $this->discounts = cache()->get("demo_discounts_{$this->profile}_{$sessionId}", []);
         // Defer API call to wire:init="loadProducts"
-        // Pre-populate product map from any previously loaded products in session (best-effort)
+        // Pre-populate product map from any previously loaded products in cache (best-effort)
     }
 
     protected function checkConfig(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
-        ConfigurationForm::applySessionConfig();
-        $config = session('creem_demo_config', []);
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
+        ConfigurationForm::applyCacheConfig();
+        $config = cache()->get(ConfigurationForm::getCacheConfigKey(), []);
         $this->isConfigured = !empty($config[$this->profile]['api_key']);
     }
 
@@ -48,7 +49,7 @@ class DiscountDemo extends Component
     {
         $this->products = [];
         try {
-            ConfigurationForm::applySessionConfig();
+            ConfigurationForm::applyCacheConfig();
             $resp = Creem::profile($this->profile)->products()->list(1, 100);
             $this->products = $resp['items'] ?? [];
             // Build id -> name map for display
@@ -107,21 +108,12 @@ class DiscountDemo extends Component
 
             $result = Creem::profile($this->profile)->discounts()->create($payload);
 
-            $discounts   = session("demo_discounts_{$this->profile}", []);
-            $discounts[] = [
-                'code'         => $result['code'] ?? $code,
-                'name'         => $result['name'] ?? $name,
-                'type'         => $result['type'] ?? $this->discountType,
-                'amount'       => $result['amount'] ?? ($this->discountType === 'percentage' ? ($result['percentage'] ?? $this->discountAmount) : $this->discountAmount),
-                'duration'     => $result['duration'] ?? $this->discountDuration,
-                'status'       => $result['status'] ?? 'active',
-                'product_ids'  => $productIds,  // Store array of selected products
-            ];
-            session(["demo_discounts_{$this->profile}" => $discounts]);
-            $this->discounts = $discounts;
+            // Reload discounts from API to get authoritative list
+            $this->loadDiscounts();
 
             session()->flash('success', "Discount code \"{$code}\" created!");
             $this->showForm = false;
+            $this->showModal = false;
             $this->reset(['discountName', 'discountCode', 'selectedProducts']);
             $this->discountAmount   = 20;
             $this->discountType     = 'percentage';
@@ -135,7 +127,8 @@ class DiscountDemo extends Component
 
     public function clearDiscounts(): void
     {
-        session()->forget("demo_discounts_{$this->profile}");
+        $sessionId = session()->getId();
+        cache()->forget("demo_discounts_{$this->profile}_{$sessionId}");
         $this->discounts = [];
     }
 
@@ -162,7 +155,8 @@ class DiscountDemo extends Component
     public function refresh(): void
     {
         $this->checkConfig();
-        $this->discounts = session('demo.discounts', []);
+        $sessionId = session()->getId();
+        $this->discounts = cache()->get("demo_discounts_{$this->profile}_{$sessionId}", []);
     }
 
     public function render()

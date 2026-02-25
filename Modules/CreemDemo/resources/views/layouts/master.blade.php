@@ -363,5 +363,9 @@ function copyCode(btn) {
     });
 }
 </script>
+
+{{-- Keep cache alive with heartbeat polling (only when tab is active) --}}
+@livewire('creemdemo::heartbeat')
+
 </body>
 </html>

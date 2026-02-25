@@ -21,10 +21,10 @@ class ProductsList extends Component
 
     protected function checkAndApplyConfig(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
-        // Apply session config into runtime so Creem::profile(...) will work
-        ConfigurationForm::applySessionConfig();
-        $config = session('creem_demo_config', []);
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
+        // Apply cache config into runtime so Creem::profile(...) will work
+        ConfigurationForm::applyCacheConfig();
+        $config = cache()->get(ConfigurationForm::getCacheConfigKey(), []);
         $this->isConfigured = !empty($config[$this->profile]['api_key']);
     }
 

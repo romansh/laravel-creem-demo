@@ -9,8 +9,9 @@ use Livewire\Component;
  * Configuration form — multi-profile API credential manager.
  *
  * Supports adding/removing profiles, switching active profile.
- * Every saved profile is stored in session AND in the cache under a unique token key.
- * The same token forms the per-profile webhook URL: /creem/hook/{token}
+ * Every saved profile is stored in CACHE under session-specific keys for isolation.
+ * Webhook tokens are stored separately under unique cache keys per profile.
+ * The cache key forms the per-profile webhook URL: /creem/hook/{token}
  */
 class ConfigurationForm extends Component
 {
@@ -23,21 +24,39 @@ class ConfigurationForm extends Component
     public string $webhookSecret = '';
     public string $webhookUrl    = '';   // generated, shown in UI
 
-    /** Cache TTL in seconds (10 minutes) */
-    const CACHE_TTL = 600;
+    /** Cache TTL in seconds (2 hours) */
+    const CACHE_TTL = 7200;
 
-    /** Cache key prefix */
+    /** Cache key prefix for webhook tokens */
     const CACHE_PREFIX = 'creem_session_';
+
+    /**
+     * Get session-specific cache key for profile configs.
+     * Each browser session gets its own isolated config storage.
+     */
+    public static function getCacheConfigKey(): string
+    {
+        return 'creem_demo_config_' . session()->getId();
+    }
+
+    /**
+     * Get session-specific cache key for active profile.
+     * Each browser session gets its own isolated active profile.
+     */
+    public static function getCacheActiveProfileKey(): string
+    {
+        return 'creem_demo_active_profile_' . session()->getId();
+    }
 
     public function mount(): void
     {
-        $this->loadFromSession();
+        $this->loadFromCache();
     }
 
-    protected function loadFromSession(): void
+    protected function loadFromCache(): void
     {
-        $config = session('creem_demo_config', []);
-        $this->activeProfile = session('creem_demo_active_profile', 'default');
+        $config = cache()->get(self::getCacheConfigKey(), []);
+        $this->activeProfile = cache()->get(self::getCacheActiveProfileKey(), 'default');
 
         if (!empty($config)) {
             $this->profiles = $config;
@@ -66,7 +85,8 @@ class ConfigurationForm extends Component
                     'profile_name'   => $name,
                     'api_key'        => $data['api_key'],
                     'webhook_secret' => $data['webhook_secret'] ?? '',
-                    'test_mode'      => true,
+                    'test_mode'      => $data['test_mode'] ?? true,
+                    'session_id'     => session()->getId(),
                 ], self::CACHE_TTL);
             }
         }
@@ -82,10 +102,14 @@ class ConfigurationForm extends Component
     /** Build the public-facing webhook URL for a given cache key. */
     public static function buildWebhookUrl(string $cacheKey): string
     {
+        $appUrl = config('app.url', request()->getSchemeAndHttpHost());
         $tunnel = env('CLOUDFLARED_TUNNEL_DOMAIN');
-        $base   = $tunnel
+        
+        // If app runs on localhost and Cloudflare Tunnel is configured, use tunnel domain
+        $base = (str_contains($appUrl, 'localhost') && $tunnel)
             ? rtrim($tunnel, '/')
-            : rtrim(config('app.url', request()->getSchemeAndHttpHost()), '/');
+            : rtrim($appUrl, '/');
+            
         return $base . '/creem/hook/' . $cacheKey;
     }
 
@@ -93,10 +117,10 @@ class ConfigurationForm extends Component
     {
         // Save current before switching
         $this->saveCurrentProfileToMemory();
-        $this->saveAllToSession();
+        $this->saveAllToCache();
 
         $this->activeProfile = $name;
-        session(['creem_demo_active_profile' => $name]);
+        cache()->put(self::getCacheActiveProfileKey(), $name, self::CACHE_TTL);
         $this->loadProfileFields();
 
         $this->dispatch('profile-switched', name: $name);
@@ -116,7 +140,7 @@ class ConfigurationForm extends Component
 
         $this->profiles[$slug] = ['api_key' => '', 'webhook_secret' => '', 'cache_key' => '', 'webhook_url' => ''];
         $this->newProfileName = '';
-        $this->saveAllToSession();
+        $this->saveAllToCache();
         $this->switchProfile($slug);
     }
 
@@ -124,22 +148,28 @@ class ConfigurationForm extends Component
     {
         if ($name === 'default' || !isset($this->profiles[$name])) return;
 
-        // Delete from cache
+        // Delete webhook token from cache
         $key = $this->profiles[$name]['cache_key'] ?? '';
         if ($key) cache()->forget(self::CACHE_PREFIX . $key);
 
-        // Remove any per-profile demo data (webhook logs stored in cache, rest in session)
-        cache()->forget("demo_webhooks_{$name}");
-        session()->forget(["demo_accesses_{$name}", "demo_captured_licenses_{$name}", "demo_discounts_{$name}", "demo_subscriptions_{$name}"]);
+        // Remove all per-profile demo data from cache
+        $sessionId = session()->getId();
+        cache()->forget([
+            "demo_webhooks_{$name}_{$sessionId}",
+            "demo_accesses_{$name}_{$sessionId}",
+            "demo_captured_licenses_{$name}_{$sessionId}",
+            "demo_discounts_{$name}_{$sessionId}",
+            "demo_subscriptions_{$name}_{$sessionId}"
+        ]);
 
         unset($this->profiles[$name]);
 
         if ($this->activeProfile === $name) {
             $this->activeProfile = 'default';
-            session(['creem_demo_active_profile' => 'default']);
+            cache()->put(self::getCacheActiveProfileKey(), 'default', self::CACHE_TTL);
         }
 
-        $this->saveAllToSession();
+        $this->saveAllToCache();
         $this->loadProfileFields();
         $this->dispatch('configuration-updated');
     }
@@ -182,18 +212,19 @@ class ConfigurationForm extends Component
             'api_key'        => $this->apiKey,
             'webhook_secret' => $this->webhookSecret,
             'test_mode'      => true,
+            'session_id'     => session()->getId(), // Store session ID for data isolation
         ], self::CACHE_TTL);
 
-        $this->saveAllToSession();
-        self::applySessionConfig();
+        $this->saveAllToCache();
+        self::applyCacheConfig();
 
         session()->flash('success', "Profile \"{$this->activeProfile}\" saved!");
         $this->dispatch('configuration-updated');
     }
 
-    protected function saveAllToSession(): void
+    protected function saveAllToCache(): void
     {
-        session(['creem_demo_config' => $this->profiles]);
+        cache()->put(self::getCacheConfigKey(), $this->profiles, self::CACHE_TTL);
     }
 
     public function clearConfiguration(): void
@@ -203,7 +234,7 @@ class ConfigurationForm extends Component
             $k = $data['cache_key'] ?? '';
             if ($k) cache()->forget(self::CACHE_PREFIX . $k);
         }
-        session()->forget(['creem_demo_config', 'creem_demo_active_profile']);
+        cache()->forget([self::getCacheConfigKey(), self::getCacheActiveProfileKey()]);
         $this->profiles      = ['default' => ['api_key' => '', 'webhook_secret' => '', 'cache_key' => '', 'webhook_url' => '']];
         $this->activeProfile = 'default';
         $this->apiKey        = '';
@@ -212,7 +243,7 @@ class ConfigurationForm extends Component
         $this->dispatch('configuration-updated');
     }
 
-    public function clearSession(): void
+    public function clearCache(): void
     {
         // Remove all cached profile data first
         foreach ($this->profiles as $data) {
@@ -221,36 +252,38 @@ class ConfigurationForm extends Component
         }
 
         // Forget global config keys
-        session()->forget(['creem_demo_config', 'creem_demo_active_profile']);
+        cache()->forget([self::getCacheConfigKey(), self::getCacheActiveProfileKey()]);
 
-        // Forget any per-profile demo keys (webhook logs in cache, rest in session)
-        $profiles = array_keys(session('creem_demo_config', $this->profiles ?? ['default' => []]));
+        // Forget all per-profile demo keys (now all in cache)
+        $sessionId = session()->getId();
+        $profiles = array_keys(cache()->get(self::getCacheConfigKey(), $this->profiles ?? ['default' => []]));
         foreach ($profiles as $p) {
-            cache()->forget("demo_webhooks_{$p}");
-            session()->forget([
-                "demo_accesses_{$p}", "demo_captured_licenses_{$p}",
-                "demo_discounts_{$p}", "demo_subscriptions_{$p}",
+            cache()->forget([
+                "demo_webhooks_{$p}_{$sessionId}",
+                "demo_accesses_{$p}_{$sessionId}",
+                "demo_captured_licenses_{$p}_{$sessionId}",
+                "demo_discounts_{$p}_{$sessionId}",
+                "demo_subscriptions_{$p}_{$sessionId}"
             ]);
         }
 
-        // Also clear legacy flat keys if present (except per-profile webhook keys)
-        session()->forget(['demo.accesses', 'demo.captured_licenses', 'demo.discounts', 'demo_subscriptions']);
+        // Reset to defaults
         $this->profiles      = ['default' => ['api_key' => '', 'webhook_secret' => '', 'cache_key' => '', 'webhook_url' => '']];
         $this->activeProfile = 'default';
         $this->apiKey        = '';
         $this->webhookSecret = '';
         $this->webhookUrl    = '';
-        session()->flash('success', 'Demo session fully cleared.');
+        session()->flash('success', 'Demo cache fully cleared.');
         $this->dispatch('configuration-updated');
     }
 
     /**
-     * Apply session config to Laravel runtime config.
+     * Apply cache config to Laravel runtime config.
      * Called statically by other components on mount.
      */
-    public static function applySessionConfig(): void
+    public static function applyCacheConfig(): void
     {
-        $config = session('creem_demo_config', []);
+        $config = cache()->get(self::getCacheConfigKey(), []);
         if (empty($config)) return;
 
         foreach ($config as $profileName => $profileConfig) {

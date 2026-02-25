@@ -18,9 +18,9 @@ class TransactionsList extends Component
 
     protected function checkAndApplyConfig(): void
     {
-        ConfigurationForm::applySessionConfig();
+        ConfigurationForm::applyCacheConfig();
         // ensure profile uses runtime config key if present
-        $this->profile = session('creem_demo_active_profile', $this->profile ?? 'default');
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), $this->profile ?? 'default');
     }
 
     public function mount(string $profile = 'default'): void

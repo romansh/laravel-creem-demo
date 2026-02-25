@@ -30,9 +30,9 @@ class SubscriptionsList extends Component
 
     protected function checkAndApplyConfig(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
-        ConfigurationForm::applySessionConfig();
-        $config = session('creem_demo_config', []);
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
+        ConfigurationForm::applyCacheConfig();
+        $config = cache()->get(ConfigurationForm::getCacheConfigKey(), []);
         $this->isConfigured = !empty($config[$this->profile]['api_key']);
     }
 
@@ -56,7 +56,7 @@ class SubscriptionsList extends Component
                 $response['items'] ?? [],
                 fn($p) => ($p['billing_type'] ?? '') === 'recurring'
             ));
-            $this->activeSubscriptions = session("demo_subscriptions_{$this->profile}", []);
+            $this->activeSubscriptions = cache()->get("demo_subscriptions_{$this->profile}", []);
         } catch (\Throwable $e) {
             $this->error = $e->getMessage();
         } finally {
@@ -135,40 +135,40 @@ class SubscriptionsList extends Component
 
     public function pauseSubscription(int $index): void
     {
-        $subs = session("demo_subscriptions_{$this->profile}", []);
+        $subs = cache()->get("demo_subscriptions_{$this->profile}", []);
         if (!isset($subs[$index])) return;
         if ($subId = $subs[$index]['subscription_id'] ?? null) {
             try { $this->checkAndApplyConfig(); Creem::profile($this->profile)->subscriptions()->pause($subId); }
             catch (\Throwable $e) { session()->flash('error', $e->getMessage()); }
         }
         $subs[$index]['status'] = 'paused';
-        session(["demo_subscriptions_{$this->profile}" => $subs]);
+        cache()->put("demo_subscriptions_{$this->profile}", $subs, ConfigurationForm::CACHE_TTL);
         $this->activeSubscriptions = $subs;
     }
 
     public function resumeSubscription(int $index): void
     {
-        $subs = session("demo_subscriptions_{$this->profile}", []);
+        $subs = cache()->get("demo_subscriptions_{$this->profile}", []);
         if (!isset($subs[$index])) return;
         if ($subId = $subs[$index]['subscription_id'] ?? null) {
             try { $this->checkAndApplyConfig(); Creem::profile($this->profile)->subscriptions()->resume($subId); }
             catch (\Throwable $e) { session()->flash('error', $e->getMessage()); }
         }
         $subs[$index]['status'] = 'active';
-        session(["demo_subscriptions_{$this->profile}" => $subs]);
+        cache()->put("demo_subscriptions_{$this->profile}", $subs, ConfigurationForm::CACHE_TTL);
         $this->activeSubscriptions = $subs;
     }
 
     public function cancelSubscription(int $index): void
     {
-        $subs = session("demo_subscriptions_{$this->profile}", []);
+        $subs = cache()->get("demo_subscriptions_{$this->profile}", []);
         if (!isset($subs[$index])) return;
         if ($subId = $subs[$index]['subscription_id'] ?? null) {
             try { $this->checkAndApplyConfig(); Creem::profile($this->profile)->subscriptions()->cancel($subId); }
             catch (\Throwable $e) { session()->flash('error', $e->getMessage()); }
         }
         $subs[$index]['status'] = 'cancelled';
-        session(["demo_subscriptions_{$this->profile}" => $subs]);
+        cache()->put("demo_subscriptions_{$this->profile}", $subs, ConfigurationForm::CACHE_TTL);
         $this->activeSubscriptions = $subs;
     }
 

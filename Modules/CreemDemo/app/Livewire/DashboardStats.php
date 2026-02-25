@@ -17,17 +17,17 @@ class DashboardStats extends Component
 
     public function mount(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
-        $config = session('creem_demo_config', []);
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
+        $config = cache()->get(ConfigurationForm::getCacheConfigKey(), []);
         $this->isConfigured = !empty($config[$this->profile]['api_key']);
         $this->loading = $this->isConfigured;
     }
 
     public function loadStats(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
-        ConfigurationForm::applySessionConfig();
-        $config = session('creem_demo_config', []);
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
+        ConfigurationForm::applyCacheConfig();
+        $config = cache()->get(ConfigurationForm::getCacheConfigKey(), []);
         $this->isConfigured = !empty($config[$this->profile]['api_key']);
 
         if (!$this->isConfigured) {

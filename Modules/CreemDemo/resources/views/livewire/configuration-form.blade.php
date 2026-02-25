@@ -92,7 +92,7 @@
                 </button>
             </div>
             <div style="font-size:10.5px;color:#6b7280;margin-top:5px;">
-                Paste this URL in your Creem dashboard → Webhooks. Session stays active for 10 min; heartbeat refreshes cache every 9 minutes.
+                Paste this URL in your Creem dashboard → Webhooks. Cache stays active for 2 hours; heartbeat refreshes every 1 hour 59 minutes (only when browser tab is active).
             </div>
         </div>
         @endif
@@ -116,8 +116,8 @@
             <span>Demo always uses <strong>test_mode: true</strong>. Do not use production keys — use only test keys starting with <code style="background:#fde68a;padding:1px 4px;border-radius:3px;">creem_test_</code></span>
         </div>
         <div style="padding:12px 18px;border-top:1px solid #f0f0f2;display:flex;align-items:center;justify-content:space-between;">
-            <button wire:click="clearSession" class="btn btn-ghost btn-sm" style="color:#aaa;border-color:transparent;">
-                🗑 Clear session
+            <button wire:click="clearCache" class="btn btn-ghost btn-sm" style="color:#aaa;border-color:transparent;">
+                🗑 Clear cache
             </button>
             <button wire:click="saveConfiguration" wire:loading.attr="disabled" class="btn btn-indigo">
                 <span wire:loading.remove>Save & Connect</span>
@@ -134,19 +134,33 @@
             <span style="font-size:11px;font-weight:600;color:#cbd5e1;text-transform:uppercase;letter-spacing:.06em;">Multi-profile Example</span>
             <button onclick="copyCode(this)" style="font-size:12px;color:#888;background:none;border:none;cursor:pointer;padding:2px 8px;border-radius:4px;">Copy</button>
         </div>
-        <pre><code>// Example: seed two profiles into the demo session
-// (run in a controller, tinker, or route during development)
-session(['creem_demo_config' => [
-    'default' => ['api_key' => 'creem_test_default_xyz', 'webhook_secret' => 'whsec_...'],
-    'staging' => ['api_key' => 'creem_test_staging_abc', 'webhook_secret' => 'whsec_...'],
-]]);
-session(['creem_demo_active_profile' => 'staging']);
+        <pre><code>// Configure profiles in config/creem.php:
+'profiles' => [
+    'default' => [
+        'api_key' => env('CREEM_API_KEY'),
+        'test_mode' => env('CREEM_TEST_MODE', false),
+        'webhook_secret' => env('CREEM_WEBHOOK_SECRET'),
+    ],
+    'product_a' => [
+        'api_key' => env('CREEM_PRODUCT_A_KEY'),
+        'test_mode' => true,
+        'webhook_secret' => env('CREEM_PRODUCT_A_SECRET'),
+    ],
+],
 
-// Apply session config to runtime so Creem::profile('staging') works
-\Modules\CreemDemo\Livewire\ConfigurationForm::applySessionConfig();
+// Use default profile (implicit):
+$products = Creem::products()->list();
 
-// Now you can call via profile name:
-// Creem::profile('staging')->products()->list();
+// Use named profile explicitly:
+$checkout = Creem::profile('product_a')
+    ->checkouts()
+    ->create([...]);
+
+// Or with inline config (no profile needed):
+$result = Creem::withConfig([
+    'api_key' => 'creem_test_xyz',
+    'test_mode' => true,
+])->products()->find('prod_123');
 </code></pre>
     </div>
 

@@ -20,18 +20,20 @@ class AccessLog extends Component
 
     public function mount(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
         $this->loadAccesses();
     }
 
     public function loadAccesses(): void
     {
-        $this->accesses = array_reverse(cache()->get("demo_accesses_{$this->profile}", []));
+        $sessionId = session()->getId();
+        $this->accesses = array_reverse(cache()->get("demo_accesses_{$this->profile}_{$sessionId}", []));
     }
 
     public function clearAccesses(): void
     {
-        cache()->forget("demo_accesses_{$this->profile}");
+        $sessionId = session()->getId();
+        cache()->forget("demo_accesses_{$this->profile}_{$sessionId}");
         $this->accesses = [];
     }
 
@@ -39,7 +41,7 @@ class AccessLog extends Component
     #[On('profile-switched')]
     public function refresh(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
         $this->loadAccesses();
     }
 

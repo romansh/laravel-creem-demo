@@ -124,9 +124,10 @@ class CreemDemoListener
 
     public function onGrantAccess(GrantAccess $event): void
     {
-        $profile  = config('creem.default_profile', 'default');
-        $cKey     = "demo_accesses_{$profile}";
-        $accesses = cache()->get($cKey, []);
+        $profile   = config('creem.default_profile', 'default');
+        $sessionId = config('creem.demo_session_id');
+        $cKey      = "demo_accesses_{$profile}_" . ($sessionId ?: 'global');
+        $accesses  = cache()->get($cKey, []);
 
         // Prefer email, fall back to customer id or metadata.internal_customer_id
         $display = $event->customer['email'] ?? $event->customer['id'] ?? $event->metadata['internal_customer_id'] ?? 'Unknown';
@@ -139,14 +140,15 @@ class CreemDemoListener
             'metadata'   => $event->metadata,
         ];
 
-        cache()->put($cKey, $accesses, 3600);
+        cache()->put($cKey, $accesses, 7200);
     }
 
     public function onRevokeAccess(RevokeAccess $event): void
     {
-        $profile  = config('creem.default_profile', 'default');
-        $cKey     = "demo_accesses_{$profile}";
-        $accesses = cache()->get($cKey, []);
+        $profile   = config('creem.default_profile', 'default');
+        $sessionId = config('creem.demo_session_id');
+        $cKey      = "demo_accesses_{$profile}_" . ($sessionId ?: 'global');
+        $accesses  = cache()->get($cKey, []);
 
         // Use the same matching logic as when creating the entry
         $incoming = $event->customer['email'] ?? $event->customer['id'] ?? $event->metadata['internal_customer_id'] ?? '';
@@ -162,7 +164,7 @@ class CreemDemoListener
             }
         }
 
-        cache()->put($cKey, $accesses, 3600);
+        cache()->put($cKey, $accesses, 7200);
     }
 
     // ── Helpers ────────────────────────────────────────────────
@@ -171,22 +173,22 @@ class CreemDemoListener
     {
         // Write into per-profile CACHE key (not session!) because webhook
         // requests arrive from Creem servers without the browser session.
-        // The current runtime profile is published into
-        // config('creem.default_profile') by the DemoWebhookController.
+        // The session ID is passed via config('creem.demo_session_id') by DemoWebhookController.
         $entry = [
             'event'      => $eventType,
             'payload'    => $payload,
             'created_at' => now()->toDateTimeString(),
         ];
 
-        $profile = config('creem.default_profile', 'default');
-        $cKey = "demo_webhooks_{$profile}";
-        $logs = cache()->get($cKey, []);
-        $logs[] = $entry;
+        $profile   = config('creem.default_profile', 'default');
+        $sessionId = config('creem.demo_session_id');
+        $cKey      = "demo_webhooks_{$profile}_" . ($sessionId ?: 'global');
+        $logs      = cache()->get($cKey, []);
+        $logs[]    = $entry;
         if (count($logs) > self::MAX_WEBHOOK_LOGS) {
             $logs = array_slice($logs, -self::MAX_WEBHOOK_LOGS);
         }
-        cache()->put($cKey, $logs, 3600); // keep for 1 hour
+        cache()->put($cKey, $logs, 7200); // keep for 2 hours
     }
 
     private function pushSubscriptionRecord(array $object, string $subscriptionId, string $status = 'active'): void

@@ -43,10 +43,19 @@ class DemoWebhookController extends Controller
             "creem.profiles.{$profileName}.webhook_secret" => $profile['webhook_secret'],
             "creem.profiles.{$profileName}.test_mode"      => $profile['test_mode'] ?? true,
             'creem.default_profile'                        => $profileName,
+            'creem.demo_session_id'                        => $profile['session_id'] ?? null, // Pass session ID for data isolation
         ]);
 
         // 3. Refresh cache TTL so the session stays alive after each incoming webhook
         cache()->put($cacheKey, $profile, ConfigurationForm::CACHE_TTL);
+
+        // Log incoming webhook for debugging
+        \Log::info('Demo webhook received', [
+            'token' => $token,
+            'profile' => $profileName,
+            'payload' => $request->all(),
+            'content' => $request->getContent(),
+        ]);
 
         // 4. Run signature verification via the package middleware, then delegate to its controller
         return app(VerifyCreemWebhook::class)->handle(

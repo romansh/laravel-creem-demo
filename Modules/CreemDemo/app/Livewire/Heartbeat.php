@@ -9,7 +9,7 @@ class Heartbeat extends Component
     /** Refresh TTL for saved profiles (called via wire:poll) */
     public function keepAlive(): void
     {
-        $profiles = session('creem_demo_config', []);
+        $profiles = cache()->get(ConfigurationForm::getCacheConfigKey(), []);
         foreach ($profiles as $name => $data) {
             $key = $data['cache_key'] ?? '';
             if ($key && !empty($data['api_key'])) {

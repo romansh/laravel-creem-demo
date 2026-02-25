@@ -22,13 +22,14 @@ class WebhookLogs extends Component
 
     public function mount(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
         $this->loadLogs();
     }
 
     public function loadLogs(): void
     {
-        $this->logs = array_reverse(cache()->get("demo_webhooks_{$this->profile}", []));
+        $sessionId = session()->getId();
+        $this->logs = array_reverse(cache()->get("demo_webhooks_{$this->profile}_{$sessionId}", []));
     }
 
     public function toggleExpand(int $index): void
@@ -38,7 +39,8 @@ class WebhookLogs extends Component
 
     public function clearLogs(): void
     {
-        cache()->forget("demo_webhooks_{$this->profile}");
+        $sessionId = session()->getId();
+        cache()->forget("demo_webhooks_{$this->profile}_{$sessionId}");
         $this->logs         = [];
         $this->expandedIndex = null;
     }
@@ -46,7 +48,7 @@ class WebhookLogs extends Component
     #[On('configuration-updated')]
     public function refresh(): void
     {
-        $this->profile = session('creem_demo_active_profile', 'default');
+        $this->profile = cache()->get(ConfigurationForm::getCacheActiveProfileKey(), 'default');
         $this->loadLogs();
     }
 
