@@ -140,7 +140,7 @@ Access: http://localhost:8000
 **The easiest way to get started:**
 
 1. Start the application (any method above)
-2. Visit `/creem-demo` 
+2. Visit `/` 
 3. **You'll see a configuration form at the top of the page**
 4. Get your API credentials from [Creem.io Dashboard](https://www.creem.io/dashboard/developers):
    - **API Key** - Copy from Settings → Developers
