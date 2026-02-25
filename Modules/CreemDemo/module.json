@@ -1,0 +1,11 @@
+{
+    "name": "CreemDemo",
+    "alias": "creemdemo",
+    "description": "Interactive demo module for Creem Laravel package",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\CreemDemo\\Providers\\CreemDemoServiceProvider"
+    ],
+    "files": []
+}

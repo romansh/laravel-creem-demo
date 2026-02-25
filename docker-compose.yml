@@ -1,0 +1,83 @@
+services:
+  laravel.test:
+    image: sail-8.4-app
+    build:
+      context: ./docker/8.4
+      dockerfile: Dockerfile
+      args:
+        WWWGROUP: '${WWWGROUP}'
+    restart: unless-stopped
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
+    environment:
+      - WWWUSER=${WWWUSER}
+      - LARAVEL_SAIL=1
+      - XDEBUG_MODE=${SAIL_XDEBUG_MODE:-off}
+      - XDEBUG_CONFIG=${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}
+      - IGNITION_LOCAL_SITES_PATH=${PWD}
+      - APP_ENV=${APP_ENV}
+      - APP_DEBUG=${APP_DEBUG}
+      - APP_URL=${APP_URL}
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=${DB_CONNECTION}
+      - SUPERVISOR_PHP_COMMAND=/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan octane:start --server=swoole --host=0.0.0.0 --port=8000
+    volumes:
+      - .:/var/www/html
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.laravel.rule=Host(`${TRAEFIK_HOST}`)"
+      - "traefik.http.routers.laravel.entrypoints=web"
+      - "traefik.http.routers.laravel.middlewares=compress"
+      - "traefik.http.services.laravel.loadbalancer.server.port=8000"
+
+      - "traefik.http.routers.laravel-cloudflare.rule=Host(`${CLOUDFLARED_TUNNEL_DOMAIN}`)"
+      - "traefik.http.routers.laravel-cloudflare.entrypoints=web"
+      - "traefik.http.routers.laravel-cloudflare.middlewares=compress"
+      # Static files for both domains
+      - "traefik.http.routers.static.rule=(Host(`${TRAEFIK_HOST}`) || Host(`${CLOUDFLARED_TUNNEL_DOMAIN}`)) && PathPrefix(`/build/assets/`)"
+      - "traefik.http.routers.static.entrypoints=web"
+      - "traefik.http.routers.static.middlewares=compress"
+      - "traefik.http.routers.static.priority=10"
+    networks:
+      - sail
+
+   
+
+  traefik:
+    image: traefik:latest
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--log.level=DEBUG"
+    labels:
+      - "traefik.http.middlewares.compress.compress=true"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - sail
+    environment:
+      - TRAEFIK_HOST=${TRAEFIK_HOST}
+
+# Cloudflare Tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    environment:
+      CLOUDFLARED_TUNNEL_TOKEN: ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      - traefik
+    networks:
+      - sail
+    restart: unless-stopped
+
+
+networks:
+  sail:
+    driver: bridge
