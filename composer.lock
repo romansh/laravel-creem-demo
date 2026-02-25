@@ -3702,16 +3702,16 @@
         },
         {
             "name": "romansh/laravel-creem",
-            "version": "v1.2.3",
+            "version": "v1.2.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/romansh/laravel-creem.git",
-                "reference": "ca4c3809941c4f4de4bfbf4ca3b9a18f0126930e"
+                "reference": "38032db0d518e228b760a06eab56dd21266ea747"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/romansh/laravel-creem/zipball/ca4c3809941c4f4de4bfbf4ca3b9a18f0126930e",
-                "reference": "ca4c3809941c4f4de4bfbf4ca3b9a18f0126930e",
+                "url": "https://api.github.com/repos/romansh/laravel-creem/zipball/38032db0d518e228b760a06eab56dd21266ea747",
+                "reference": "38032db0d518e228b760a06eab56dd21266ea747",
                 "shasum": ""
             },
             "require": {
@@ -3768,9 +3768,9 @@
             ],
             "support": {
                 "issues": "https://github.com/romansh/laravel-creem/issues",
-                "source": "https://github.com/romansh/laravel-creem/tree/v1.2.3"
+                "source": "https://github.com/romansh/laravel-creem/tree/v1.2.4"
             },
-            "time": "2026-02-25T22:49:46+00:00"
+            "time": "2026-02-25T22:57:56+00:00"
         },
         {
             "name": "symfony/clock",
