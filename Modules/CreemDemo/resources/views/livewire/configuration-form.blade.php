@@ -80,6 +80,7 @@
         <div style="padding:12px 18px;border-bottom:1px solid #eef2ff;background:#f8fafc;"
              wire:key="webhook-url-{{ $activeProfile }}-{{ $profiles[$activeProfile]['cache_key'] ?? '' }}"
              x-data="{ editing: false, url: @js($profiles[$activeProfile]['webhook_url']), original: @js($profiles[$activeProfile]['webhook_url']) }"
+             @mousedown.window="if(editing && $refs.webhookEditor && !$refs.webhookEditor.contains($event.target)){ editing=false; url=original }"
              x-init="
                  $wire.on('configuration-updated', () => {
                      editing = false;
@@ -88,7 +89,7 @@
             <div style="font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
                 📡 Webhook URL for <strong>{{ $activeProfile }}</strong>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
+              <div x-ref="webhookEditor" style="display:flex;align-items:center;gap:8px;">
                 <input type="text"
                        x-model="url"
                        :readonly="!editing"
