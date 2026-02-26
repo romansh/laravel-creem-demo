@@ -234,13 +234,15 @@ class ConfigurationForm extends Component
 
         // Remove all per-profile demo data from cache
         $sessionId = session()->getId();
-        cache()->forget([
+        foreach ([
             "demo_webhooks_{$name}_{$sessionId}",
             "demo_accesses_{$name}_{$sessionId}",
             "demo_captured_licenses_{$name}_{$sessionId}",
             "demo_discounts_{$name}_{$sessionId}",
-            "demo_subscriptions_{$name}_{$sessionId}"
-        ]);
+            "demo_subscriptions_{$name}_{$sessionId}",
+        ] as $cacheKey) {
+            cache()->forget($cacheKey);
+        }
 
         unset($this->profiles[$name]);
 
@@ -314,7 +316,8 @@ class ConfigurationForm extends Component
             $k = $data['cache_key'] ?? '';
             if ($k) cache()->forget(self::CACHE_PREFIX . $k);
         }
-        cache()->forget([self::getCacheConfigKey(), self::getCacheActiveProfileKey()]);
+        cache()->forget(self::getCacheConfigKey());
+        cache()->forget(self::getCacheActiveProfileKey());
         $this->profiles      = ['default' => ['api_key' => '', 'webhook_secret' => '', 'cache_key' => '', 'webhook_url' => '']];
         $this->activeProfile = 'default';
         $this->apiKey        = '';
@@ -331,20 +334,24 @@ class ConfigurationForm extends Component
             if ($k) cache()->forget(self::CACHE_PREFIX . $k);
         }
 
+        $profiles = array_keys($this->profiles ?: ['default' => []]);
+
         // Forget global config keys
-        cache()->forget([self::getCacheConfigKey(), self::getCacheActiveProfileKey()]);
+        cache()->forget(self::getCacheConfigKey());
+        cache()->forget(self::getCacheActiveProfileKey());
 
         // Forget all per-profile demo keys (now all in cache)
         $sessionId = session()->getId();
-        $profiles = array_keys(cache()->get(self::getCacheConfigKey(), $this->profiles ?? ['default' => []]));
         foreach ($profiles as $p) {
-            cache()->forget([
+            foreach ([
                 "demo_webhooks_{$p}_{$sessionId}",
                 "demo_accesses_{$p}_{$sessionId}",
                 "demo_captured_licenses_{$p}_{$sessionId}",
                 "demo_discounts_{$p}_{$sessionId}",
-                "demo_subscriptions_{$p}_{$sessionId}"
-            ]);
+                "demo_subscriptions_{$p}_{$sessionId}",
+            ] as $cacheKey) {
+                cache()->forget($cacheKey);
+            }
         }
 
         // Reset to defaults

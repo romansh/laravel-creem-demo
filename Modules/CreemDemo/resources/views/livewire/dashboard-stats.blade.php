@@ -77,5 +77,15 @@
 
         </div>
 
+        <div style="position:relative;z-index:20;margin-left:auto;">
+            <button type="button"
+                    onclick="if (confirm('Clear all config data for all current profiles? This cannot be undone.')) { window.dispatchEvent(new CustomEvent('clear-config-request')) }"
+                    style="padding:6px 10px;font-size:12px;font-weight:600;border:1px solid #4338ca;border-radius:6px;background:#4f46e5;color:#fff;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(79,70,229,.25);"
+                    onmouseover="this.style.background='#4338ca';this.style.borderColor='#3730a3'"
+                    onmouseout="this.style.background='#4f46e5';this.style.borderColor='#4338ca'">
+                Clear all config data
+            </button>
+        </div>
+
     </div>
 </div>

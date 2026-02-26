@@ -18,6 +18,7 @@
     <div class="card" style="margin-bottom:16px;"
          x-data="{ statsLoading: true, statsUnconfigured: false, switchTarget: '' }"
          @profile-switched.window="statsLoading=true; statsUnconfigured=false; switchTarget=$event.detail.name||''"
+            @clear-config-request.window="$wire.clearCache()"
          @configuration-updated.window="statsLoading=true; statsUnconfigured=false"
          @stats-loaded.window="statsLoading=false; statsUnconfigured=!$event.detail.configured; switchTarget=''">
         <div style="padding:0 16px;border-bottom:1px solid #e8e8ec;display:flex;align-items:center;gap:4px;overflow-x:auto;background:#fafafa;flex-wrap:nowrap;">
@@ -73,7 +74,6 @@
                 </div>
             </div>
         </div>
-
         {{-- Credential fields --}}
         {{-- Webhook URL: shown after profile is saved (moved above credentials for visibility) --}}
         @if(!empty($profiles[$activeProfile]['webhook_url']))
@@ -161,18 +161,16 @@
                 <div style="font-size:11px;color:#bbb;margin-top:4px;">From Creem Dashboard → Developers → Webhooks. The webhook URL is generated below after saving.</div>
             </div>
         </div>
-        <div style="padding:12px 18px;background:#fffbeb;border-top:1px solid #fde68a;display:flex;align-items:center;gap:8px;font-size:12px;color:#92400e;">
-            <svg style="width:14px;height:14px;flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-            <span>Demo always uses <strong>test_mode: true</strong>. Do not use production keys — use only test keys starting with <code style="background:#fde68a;padding:1px 4px;border-radius:3px;">creem_test_</code></span>
-        </div>
         <div style="padding:12px 18px;border-top:1px solid #f0f0f2;display:flex;align-items:center;justify-content:space-between;">
-            <button wire:click="clearCache" class="btn btn-ghost btn-sm" style="color:#aaa;border-color:transparent;">
-                🗑 Clear cache
-            </button>
+            <div></div>
             <button wire:click="saveConfiguration" wire:loading.attr="disabled" class="btn btn-indigo">
                 <span wire:loading.remove>Save & Connect</span>
                 <span wire:loading>Saving…</span>
             </button>
+        </div>
+        <div style="padding:12px 18px;background:#fffbeb;border-top:1px solid #fde68a;display:flex;align-items:center;gap:8px;font-size:12px;color:#92400e;">
+            <svg style="width:14px;height:14px;flex-shrink:0;" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+            <span>Demo always uses <strong>test_mode: true</strong>. Do not use production keys — use only test keys starting with <code style="background:#fde68a;padding:1px 4px;border-radius:3px;">creem_test_</code></span>
         </div>
 
     </div>
