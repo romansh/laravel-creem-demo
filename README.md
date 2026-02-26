@@ -16,6 +16,25 @@
 
 Built with Laravel 12, Livewire 4, and Tailwind CSS 4.
 
+## 🖼️ UI Walkthrough (Screenshots)
+
+The screenshots below show the main demo flow and key UI areas.
+
+<table>
+   <tr>
+      <td><strong>1) API Setup</strong><br/>Configure API key &amp; webhook secret (masked with eye toggle), webhook URL with copy button, multi-profile tabs, and code example for config/creem.php.<br/><a href="docs/demo-screenshot-1.png"><img src="docs/demo-screenshot-1.png" alt="API Setup — credentials, webhook URL, profile tabs" width="100%"/></a></td>
+      <td><strong>2) Webhooks &amp; Access</strong><br/>Live access log showing GrantAccess / RevokeAccess events, event log with timestamps, event→action mapping table, and AppServiceProvider listener code.<br/><a href="docs/demo-screenshot-2.png"><img src="docs/demo-screenshot-2.png" alt="Webhooks and Access — event log, access log, action mapping" width="100%"/></a></td>
+   </tr>
+   <tr>
+      <td><strong>3) Transactions</strong><br/>Browse payment transactions with IDs, amounts, dates, and customer emails. Includes a code example for listing transactions via the Creem facade.<br/><a href="docs/demo-screenshot-3.png"><img src="docs/demo-screenshot-3.png" alt="Transactions — payment history list with code example" width="100%"/></a></td>
+      <td><strong>4) Discounts</strong><br/>Create Discount Code dialog — set name, code, pick target products, choose discount type (percentage/fixed), amount, and duration. Validation shown inline.<br/><a href="docs/demo-screenshot-4.png"><img src="docs/demo-screenshot-4.png" alt="Discounts — create discount code dialog with product selection" width="100%"/></a></td>
+   </tr>
+   <tr>
+      <td><strong>5) Subscriptions</strong><br/>Recurring plans list with billing periods (monthly, quarterly, bi-annual, annual), prices, and Subscribe buttons. Code example for creating plans and checkout sessions.<br/><a href="docs/demo-screenshot-5.png"><img src="docs/demo-screenshot-5.png" alt="Subscriptions — recurring plans with billing periods and code example" width="100%"/></a></td>
+      <td><strong>6) One-Time Payments</strong><br/>Product list with Preview Product modal showing name, description, price, currency, and tax mode. Create products via API with the code example on the right.<br/><a href="docs/demo-screenshot-6.png"><img src="docs/demo-screenshot-6.png" alt="One-Time Payments — product preview modal and creation code" width="100%"/></a></td>
+   </tr>
+</table>
+
 ## Requirements
 
 - PHP 8.2+
