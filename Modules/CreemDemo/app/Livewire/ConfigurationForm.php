@@ -72,7 +72,31 @@ class ConfigurationForm extends Component
         $p = $this->profiles[$this->activeProfile] ?? [];
         $this->apiKey        = $p['api_key']        ?? '';
         $this->webhookSecret = $p['webhook_secret']  ?? '';
-        $this->webhookUrl    = $p['webhook_url']     ?? '';
+
+        // Generate webhook URL immediately if not yet set
+        $this->ensureWebhookUrl();
+    }
+
+    /**
+     * Ensure the active profile has a cache key and webhook URL.
+     * Called on mount, profile switch, and profile creation — before credentials are entered.
+     */
+    protected function ensureWebhookUrl(): void
+    {
+        $profile = $this->profiles[$this->activeProfile] ?? [];
+        $cacheKey = $profile['cache_key'] ?? '';
+
+        if (empty($cacheKey)) {
+            $cacheKey = Str::uuid()->toString();
+        }
+
+        $webhookUrl = self::buildWebhookUrl($cacheKey);
+
+        $this->profiles[$this->activeProfile]['cache_key']    = $cacheKey;
+        $this->profiles[$this->activeProfile]['webhook_url']  = $webhookUrl;
+        $this->webhookUrl = $webhookUrl;
+
+        $this->saveAllToCache();
     }
 
     /** Refresh cache TTL for all saved profiles — called via wire:poll every 9 minutes. */
@@ -136,7 +160,13 @@ class ConfigurationForm extends Component
             return;
         }
 
-        $this->profiles[$slug] = ['api_key' => '', 'webhook_secret' => '', 'cache_key' => '', 'webhook_url' => ''];
+        $cacheKey = Str::uuid()->toString();
+        $this->profiles[$slug] = [
+            'api_key'        => '',
+            'webhook_secret' => '',
+            'cache_key'      => $cacheKey,
+            'webhook_url'    => self::buildWebhookUrl($cacheKey),
+        ];
         $this->newProfileName = '';
         $this->saveAllToCache();
         $this->switchProfile($slug);
@@ -237,7 +267,7 @@ class ConfigurationForm extends Component
         $this->activeProfile = 'default';
         $this->apiKey        = '';
         $this->webhookSecret = '';
-        $this->webhookUrl    = '';
+        $this->ensureWebhookUrl();
         $this->dispatch('configuration-updated');
     }
 
@@ -270,7 +300,7 @@ class ConfigurationForm extends Component
         $this->activeProfile = 'default';
         $this->apiKey        = '';
         $this->webhookSecret = '';
-        $this->webhookUrl    = '';
+        $this->ensureWebhookUrl();
         session()->flash('success', 'Demo cache fully cleared.');
         $this->dispatch('configuration-updated');
     }
