@@ -80,6 +80,7 @@ class ConfigurationForm extends Component
     /**
      * Ensure the active profile has a cache key and webhook URL.
      * Called on mount, profile switch, and profile creation — before credentials are entered.
+     * Does NOT overwrite an existing webhook_url (preserves user edits).
      */
     protected function ensureWebhookUrl(): void
     {
@@ -88,15 +89,66 @@ class ConfigurationForm extends Component
 
         if (empty($cacheKey)) {
             $cacheKey = Str::uuid()->toString();
+            $this->profiles[$this->activeProfile]['cache_key'] = $cacheKey;
         }
 
-        $webhookUrl = self::buildWebhookUrl($cacheKey);
+        // Only generate URL if not already set (preserve user-edited URLs)
+        $existingUrl = $profile['webhook_url'] ?? '';
+        if (empty($existingUrl)) {
+            $existingUrl = self::buildWebhookUrl($cacheKey);
+            $this->profiles[$this->activeProfile]['webhook_url'] = $existingUrl;
+        }
 
-        $this->profiles[$this->activeProfile]['cache_key']    = $cacheKey;
-        $this->profiles[$this->activeProfile]['webhook_url']  = $webhookUrl;
-        $this->webhookUrl = $webhookUrl;
+        $this->webhookUrl = $existingUrl;
+        $this->saveAllToCache();
+    }
+
+    /** Update webhook URL from the UI (must be unique across profiles). */
+    public function updateWebhook(string $newUrl): void
+    {
+        $newUrl = trim($newUrl);
+        if (empty($newUrl)) {
+            session()->flash('error', 'Webhook URL cannot be empty.');
+            return;
+        }
+
+        // Extract token (last path segment) as cache key
+        $path = parse_url($newUrl, PHP_URL_PATH) ?: '';
+        $token = trim(basename($path));
+        if (empty($token)) {
+            session()->flash('error', 'Invalid webhook URL. It must include a token path segment.');
+            return;
+        }
+
+        // Prevent duplicates across profiles
+        foreach ($this->profiles as $name => $p) {
+            if ($name === $this->activeProfile) continue;
+            if (($p['webhook_url'] ?? '') === $newUrl || (!empty($p['cache_key']) && $p['cache_key'] === $token)) {
+                session()->flash('error', "Webhook URL collides with profile '{$name}'. Choose a different URL.");
+                return;
+            }
+        }
+
+        $oldKey = $this->profiles[$this->activeProfile]['cache_key'] ?? '';
+
+        // Move cached profile data from old key to new key
+        if (!empty($oldKey) && $oldKey !== $token && cache()->has(self::CACHE_PREFIX . $oldKey)) {
+            $entry = cache()->get(self::CACHE_PREFIX . $oldKey);
+            if (is_array($entry)) {
+                $entry['session_id'] = session()->getId();
+                cache()->put(self::CACHE_PREFIX . $token, $entry, self::CACHE_TTL);
+                cache()->forget(self::CACHE_PREFIX . $oldKey);
+            }
+        }
+
+        // Save new values
+        $this->profiles[$this->activeProfile]['cache_key'] = $token;
+        $this->profiles[$this->activeProfile]['webhook_url'] = $newUrl;
+        $this->webhookUrl = $newUrl;
 
         $this->saveAllToCache();
+        session()->flash('success', 'Webhook URL updated.');
+        $this->dispatch('configuration-updated');
     }
 
     /** Refresh cache TTL for all saved profiles — called via wire:poll every 9 minutes. */

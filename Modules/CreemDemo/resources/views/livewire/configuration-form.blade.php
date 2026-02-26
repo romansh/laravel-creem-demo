@@ -77,22 +77,51 @@
         {{-- Credential fields --}}
         {{-- Webhook URL: shown after profile is saved (moved above credentials for visibility) --}}
         @if(!empty($profiles[$activeProfile]['webhook_url']))
-        <div style="padding:12px 18px;border-bottom:1px solid #eef2ff;background:#f8fafc;">
+        <div style="padding:12px 18px;border-bottom:1px solid #eef2ff;background:#f8fafc;"
+             wire:key="webhook-url-{{ $activeProfile }}-{{ $profiles[$activeProfile]['cache_key'] ?? '' }}"
+             x-data="{ editing: false, url: @js($profiles[$activeProfile]['webhook_url']), original: @js($profiles[$activeProfile]['webhook_url']) }"
+             x-init="
+                 $wire.on('configuration-updated', () => {
+                     editing = false;
+                 })
+             ">
             <div style="font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">
                 📡 Webhook URL for <strong>{{ $activeProfile }}</strong>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
-                <input type="text" readonly
-                       value="{{ $profiles[$activeProfile]['webhook_url'] }}"
-                       onclick="this.select()"
-                       style="flex:1;font-family:monospace;font-size:12px;padding:7px 10px;border:1px solid #e6eefc;border-radius:6px;background:#fff;color:#3730a3;cursor:pointer;">
-                <button onclick="navigator.clipboard.writeText('{{ $profiles[$activeProfile]['webhook_url'] }}');this.textContent='✓';setTimeout(()=>this.textContent='Copy',1500)"
-                        style="padding:7px 12px;font-size:12px;font-weight:600;border:1px solid #c7d2fe;border-radius:6px;background:#eff0fb;color:#4f46e5;cursor:pointer;white-space:nowrap;">
-                    Copy
-                </button>
+                <input type="text"
+                       x-model="url"
+                       :readonly="!editing"
+                       @click="if(!editing){ editing=true; $nextTick(() => $el.select()) }"
+                       @keydown.escape="editing=false; url=original"
+                       @keydown.enter="if(url!==original){ $wire.updateWebhook(url).then(()=>{ original=url; editing=false }) }"
+                       :style="editing
+                           ? 'flex:1;font-family:monospace;font-size:12px;padding:7px 10px;border:1px solid #818cf8;border-radius:6px;background:#fff;color:#111;outline:none;box-shadow:0 0 0 2px rgba(99,102,241,.15)'
+                           : 'flex:1;font-family:monospace;font-size:12px;padding:7px 10px;border:1px solid #e6eefc;border-radius:6px;background:#fff;color:#3730a3;cursor:pointer'">
+                <template x-if="editing">
+                    <div style="display:flex;gap:6px;">
+                        <button @click="editing=false; url=original"
+                                style="padding:7px 12px;font-size:12px;border:1px solid #e6e7ee;border-radius:6px;background:#fff;color:#777;cursor:pointer;white-space:nowrap;">Cancel</button>
+                        <button @click="$wire.updateWebhook(url).then(()=>{ original=url; editing=false })"
+                                :disabled="url===original || url.trim()===''"
+                                :style="(url===original || url.trim()==='')
+                                    ? 'padding:7px 12px;font-size:12px;font-weight:600;border:1px solid #e2e8f0;border-radius:6px;background:#f1f5f9;color:#94a3b8;cursor:not-allowed;white-space:nowrap;opacity:.6'
+                                    : 'padding:7px 12px;font-size:12px;font-weight:600;border:1px solid #c7d2fe;border-radius:6px;background:#eff0fb;color:#4f46e5;cursor:pointer;white-space:nowrap'">
+                            Update
+                        </button>
+                    </div>
+                </template>
+                <template x-if="!editing">
+                    <button @click.stop="navigator.clipboard.writeText(url);$el.textContent='✓';setTimeout(()=>$el.textContent='Copy',1500)"
+                            style="padding:7px 12px;font-size:12px;font-weight:600;border:1px solid #c7d2fe;border-radius:6px;background:#eff0fb;color:#4f46e5;cursor:pointer;white-space:nowrap;">
+                        Copy
+                    </button>
+                </template>
             </div>
             <div style="font-size:10.5px;color:#6b7280;margin-top:5px;">
-                Paste this URL in your Creem dashboard → Webhooks. Cache stays active for 2 hours; heartbeat refreshes every 1 hour 59 minutes (only when browser tab is active).
+                <span x-show="!editing">Click the URL to edit. </span>
+                <span x-show="editing">Press Enter to save, Escape to cancel. </span>
+                Paste this URL in your Creem dashboard → Webhooks.
             </div>
         </div>
         @endif
