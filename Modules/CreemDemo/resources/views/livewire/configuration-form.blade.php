@@ -128,7 +128,19 @@
         @endif
 
         <div style="padding:18px;display:grid;grid-template-columns:1fr;gap:14px;">
-            <div x-data="{ focused:false, pinned:false }">
+            <div x-data="{ focused:false, pinned:false }"
+                 x-init="
+                    const hideField = () => {
+                        focused = false;
+                        pinned = false;
+                        if ($refs.apiKeyInput) $refs.apiKeyInput.blur();
+                    };
+                    window.addEventListener('blur', hideField);
+                    window.addEventListener('pagehide', hideField);
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.hidden) hideField();
+                    });
+                 ">
                 <label class="label">API Key</label>
                 <div style="position:relative;">
                     <input x-ref="apiKeyInput" :type="(focused || pinned) ? 'text' : 'password'" wire:model.defer="apiKey" placeholder="creem_test_..."
@@ -144,7 +156,19 @@
                 </div>
                 <div style="font-size:11px;color:#bbb;margin-top:4px;"><code>creem_test_</code> = sandbox &nbsp;·&nbsp; <code>creem_</code> = live</div>
             </div>
-            <div x-data="{ focused:false, pinned:false }">
+            <div x-data="{ focused:false, pinned:false }"
+                 x-init="
+                    const hideField = () => {
+                        focused = false;
+                        pinned = false;
+                        if ($refs.webhookSecretInput) $refs.webhookSecretInput.blur();
+                    };
+                    window.addEventListener('blur', hideField);
+                    window.addEventListener('pagehide', hideField);
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.hidden) hideField();
+                    });
+                 ">
                 <label class="label">Webhook Secret</label>
                 <div style="position:relative;">
                     <input x-ref="webhookSecretInput" :type="(focused || pinned) ? 'text' : 'password'" wire:model.defer="webhookSecret" placeholder="whsec_..."
