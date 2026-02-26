@@ -1,19 +1,22 @@
 <div wire:init="loadProducts" class="card">
-    <div class="card-head">
-        <div>
-            <div style="font-size:14px;font-weight:600;color:#111;">Discount Codes</div>
-            <div style="font-size:12px;color:#aaa;margin-top:2px;">Create percentage or fixed coupons via API</div>
-        </div>
-        @if($isConfigured)
-        <div style="display:flex;gap:8px;align-items:center;">
-            @if(count($discounts) > 0)
-                <button wire:click="clearDiscounts" style="background:none;border:none;cursor:pointer;font-size:12px;color:#ccc;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#ccc'">Clear</button>
+    <div class="card-head" style="flex-direction:column;align-items:stretch;gap:0;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+                <div style="font-size:14px;font-weight:600;color:#111;">Discount Codes</div>
+                <div style="font-size:12px;color:#aaa;margin-top:2px;">Create percentage or fixed coupons via API</div>
+            </div>
+            @if($isConfigured)
+            <div style="display:flex;gap:8px;align-items:center;">
+                @if(count($discounts) > 0)
+                    <button wire:click="clearDiscounts" style="background:none;border:none;cursor:pointer;font-size:12px;color:#ccc;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#ccc'">Clear</button>
+                @endif
+                <button type="button" wire:click="openModal" class="btn btn-indigo btn-sm">
+                    + New Code
+                </button>
+            </div>
             @endif
-            <button type="button" wire:click="openModal" class="btn btn-indigo btn-sm">
-                + New Code
-            </button>
         </div>
-        @endif
+        <div style="font-size:12px;color:#6b7280;margin-top:8px;">Only discounts created in this session are shown (Creem API doesn't provide a list). Previously created discounts can still be applied at checkout.</div>
     </div>
 
     @if(!$isConfigured)
