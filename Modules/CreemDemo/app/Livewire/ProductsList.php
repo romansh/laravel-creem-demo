@@ -9,6 +9,9 @@ use Faker\Factory as Faker;
 
 class ProductsList extends Component
 {
+    private const CHECKOUT_BILLING_TYPE = 'onetime';
+    private const PRODUCT_PAGE_SIZE = 100;
+
     public string  $profile      = 'default';
     public array   $products     = [];
     public bool    $loading      = true;
@@ -43,11 +46,7 @@ class ProductsList extends Component
         if (!$this->isConfigured) { $this->products = []; $this->loading = false; return; }
 
         try {
-            $response       = Creem::profile($this->profile)->products()->list();
-            $this->products = array_values(array_filter(
-                $response['items'] ?? [],
-                fn($p) => ($p['billing_type'] ?? '') === 'onetime'
-            ));
+            $this->products = $this->fetchProductsForCheckout();
         } catch (\Throwable $e) {
             $this->error    = $e->getMessage();
             $this->products = [];
@@ -105,10 +104,21 @@ class ProductsList extends Component
     public function buyProduct(string $productId): void
     {
         $this->checkAndApplyConfig();
+        if (!$this->isConfigured) {
+            session()->flash('error', 'Configure API credentials before creating a checkout.');
+            return;
+        }
+
         try {
+            $product = $this->authorizedCheckoutProduct($productId);
+            if (!$product) {
+                session()->flash('error', 'Selected product is not available for checkout.');
+                return;
+            }
+
             $faker    = Faker::create();
             $checkout = Creem::profile($this->profile)->checkouts()->create([
-                'product_id'  => $productId,
+                'product_id'  => $product['id'],
                 'customer'    => ['email' => $faker->safeEmail()],
                 'success_url' => route('creem-demo.success'),
                 'metadata'    => ['demo' => true],
@@ -122,6 +132,30 @@ class ProductsList extends Component
         } catch (\Throwable $e) {
             session()->flash('error',$e->getMessage());
         }
+    }
+
+    private function authorizedCheckoutProduct(string $productId): ?array
+    {
+        $products = $this->fetchProductsForCheckout();
+        $this->products = $products;
+
+        foreach ($products as $product) {
+            if (hash_equals((string) ($product['id'] ?? ''), $productId)) {
+                return $product;
+            }
+        }
+
+        return null;
+    }
+
+    private function fetchProductsForCheckout(): array
+    {
+        $response = Creem::profile($this->profile)->products()->list(1, self::PRODUCT_PAGE_SIZE);
+
+        return array_values(array_filter(
+            $response['items'] ?? [],
+            fn ($product) => ($product['billing_type'] ?? '') === self::CHECKOUT_BILLING_TYPE
+        ));
     }
 
     #[On('configuration-updated')]
