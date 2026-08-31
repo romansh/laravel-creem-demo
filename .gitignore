@@ -23,8 +23,9 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
-.env
-.env.backup
+.env*
+.compose-stack.tmp/
+Envoy*.php
 storage/*.key
 storage/logs/
 storage/framework/cache/
