@@ -25,7 +25,7 @@ Homestead.yaml
 Thumbs.db
 .env*
 .compose-stack.tmp/
-Envoy*.php
+Envoy[0-9a-f][0-9a-f]*.php
 storage/*.key
 storage/logs/
 storage/framework/cache/
