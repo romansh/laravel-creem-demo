@@ -1,0 +1,455 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-blue-green-service-templates:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php.app.prod/Dockerfile
+    pull_policy: never
+    image: ${SITE_PREFIX}-app:${DEPLOYMENT_COLOR:-latest}
+    container_name: ${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}
+    restart: unless-stopped
+    command: php artisan octane:start --server=swoole --host=0.0.0.0 --port=9501 --workers=${OCTANE_WORKERS}
+    secrets:
+      - db_password
+      - app_key
+    networks:
+      - app_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+    expose:
+      - "9501"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.loadbalancer.server.port=9501"
+      - "traefik.http.services.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.loadbalancer.passhostheader=true"
+      - "traefik.http.services.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.loadbalancer.healthcheck.path=/up"
+      - "traefik.http.services.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.loadbalancer.healthcheck.interval=2s"
+      - "traefik.http.services.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.loadbalancer.healthcheck.timeout=1s"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.rule=Host(`${TRAEFIK_HOST}`) && !PathPrefix(`/images/screenshots/`) && !PathPrefix(`/build/assets/`)"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.entrypoints=websecure"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.tls=true"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.priority=${ROUTER_PRIORITY:-150}"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.middlewares=app-compress,app-headers"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}.service=${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}"
+      - "traefik.http.routers.${SITE_PREFIX}-static-${DEPLOYMENT_COLOR}.rule=Host(`${TRAEFIK_HOST}`) && PathPrefix(`/build/assets/`)"
+      - "traefik.http.routers.${SITE_PREFIX}-static-${DEPLOYMENT_COLOR}.entrypoints=websecure"
+      - "traefik.http.routers.${SITE_PREFIX}-static-${DEPLOYMENT_COLOR}.tls=true"
+      - "traefik.http.routers.${SITE_PREFIX}-static-${DEPLOYMENT_COLOR}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${SITE_PREFIX}-static-${DEPLOYMENT_COLOR}.priority=${STATIC_ROUTER_PRIORITY:-260}"
+      - "traefik.http.routers.${SITE_PREFIX}-static-${DEPLOYMENT_COLOR}.middlewares=app-compress,${SITE_PREFIX}-static-cache-${DEPLOYMENT_COLOR}"
+      - "traefik.http.routers.${SITE_PREFIX}-static-${DEPLOYMENT_COLOR}.service=${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-health.rule=Host(`${TRAEFIK_HOST}`) && Path(\"/up\")"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-health.entrypoints=websecure"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-health.tls=true"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-health.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-health.priority=${HEALTH_ROUTER_PRIORITY:-200}"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-health.service=${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-http.rule=Host(`${TRAEFIK_HOST}`)"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-http.entrypoints=web"
+      - "traefik.http.routers.${SITE_PREFIX}-app-${DEPLOYMENT_COLOR}-http.middlewares=${SITE_PREFIX}-redirect-to-https-${DEPLOYMENT_COLOR}"
+      - "traefik.http.middlewares.${SITE_PREFIX}-redirect-to-https-${DEPLOYMENT_COLOR}.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.${SITE_PREFIX}-redirect-to-https-${DEPLOYMENT_COLOR}.redirectscheme.permanent=true"
+      - "traefik.http.middlewares.app-compress.compress=true"
+      - "traefik.http.middlewares.app-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.app-headers.headers.customrequestheaders.X-Forwarded-Port=443"
+      - "traefik.http.middlewares.${SITE_PREFIX}-static-cache-${DEPLOYMENT_COLOR}.headers.customresponseheaders.Cache-Control=public, max-age=31536000, immutable"
+    volumes:
+      - php_storage:/var/www/html/storage
+      - app_logs:/var/www/html/storage/logs
+      - app_octane_json_${DEPLOYMENT_COLOR}:/var/www/html/storage/octane-state/
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_KEY: /run/secrets/app_key
+      APP_URL: ${APP_URL}
+      SEAWEEDFS_URL: ${SEAWEEDFS_URL}
+      SEAWEEDFS_ENDPOINT: ${SEAWEEDFS_ENDPOINT}
+      SEAWEEDFS_BUCKET: ${SEAWEEDFS_BUCKET}
+      DB_CONNECTION: ${DB_CONNECTION}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: /run/secrets/db_password
+      OCTANE_SERVER: swoole
+      OCTANE_HTTPS: ${OCTANE_HTTPS}
+      QUEUE_CONNECTION: ${QUEUE_CONNECTION}
+      OCTANE_WORKERS: ${OCTANE_WORKERS:-4}
+      DEPLOYMENT_COLOR: ${DEPLOYMENT_COLOR}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    deploy:
+      resources:
+        limits:
+          memory: "${APP_MEMORY_LIMIT:-2G}"
+          cpus: "${APP_CPU_LIMIT:-1.5}"
+        reservations:
+          memory: "${APP_MEMORY_RESERVATION:-1G}"
+          cpus: "${APP_CPU_RESERVATION:-0.75}"
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "--max-time", "1", "http://localhost:9501/up"]
+      interval: "${HEALTHCHECK_INTERVAL:-2s}"
+      timeout: "${HEALTHCHECK_TIMEOUT:-1s}"
+      retries: "${HEALTHCHECK_RETRIES:-2}"
+      start_period: 10s
+
+  queue:
+    build:
+      context: .
+      dockerfile: docker/php.queue.prod/Dockerfile
+    pull_policy: never
+    image: ${SITE_PREFIX}-queue:${DEPLOYMENT_COLOR:-latest}
+    container_name: ${SITE_PREFIX}-queue-${DEPLOYMENT_COLOR}
+    restart: unless-stopped
+    secrets:
+      - db_password
+      - app_key
+    networks:
+      - app_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_started
+    command: php artisan queue:work --queue="${QUEUES}" --sleep="${QUEUE_SLEEP:-1}" --tries="${QUEUE_TRIES:-3}" --max-time="${QUEUE_MAX_TIME:-3600}" --memory="${QUEUE_MEMORY:-512}"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_KEY: /run/secrets/app_key
+      APP_URL: ${APP_URL}
+      SEAWEEDFS_URL: ${SEAWEEDFS_URL}
+      SEAWEEDFS_ENDPOINT: ${SEAWEEDFS_ENDPOINT}
+      SEAWEEDFS_BUCKET: ${SEAWEEDFS_BUCKET}
+      DB_CONNECTION: ${DB_CONNECTION}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: /run/secrets/db_password
+      QUEUE_CONNECTION: ${QUEUE_CONNECTION}
+      DEPLOYMENT_COLOR: ${DEPLOYMENT_COLOR}
+    volumes:
+      - php_storage:/var/www/html/storage
+      - queue_logs:/var/www/html/storage/logs
+    healthcheck:
+      test: ["CMD-SHELL", "[ ${QUEUE_WORKERS:-0} -eq 0 ] || ps aux | grep '[q]ueue:work' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      mode: replicated
+      replicas: ${QUEUE_REPLICA_NUMBER:-1}
+      endpoint_mode: dnsrr
+      resources:
+        limits:
+          memory: "${QUEUE_MEMORY_LIMIT:-1G}"
+          cpus: "${QUEUE_CPU_LIMIT:-0.5}"
+        reservations:
+          memory: "${QUEUE_MEMORY_RESERVATION:-512M}"
+          cpus: "${QUEUE_CPU_RESERVATION:-0.25}"
+    logging: *default-logging
+
+  seaweedfs:
+    build:
+      context: ./docker/seaweedfs
+      dockerfile: Dockerfile
+    command: "server -dir=/data -s3 -s3.config=/tmp/s3.json"
+    environment:
+      - AWS_ACCESS_KEY_ID=${SEAWEEDFS_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${SEAWEEDFS_SECRET_KEY}
+    pull_policy: never
+    image: ${SITE_PREFIX}-seaweedfs:${DEPLOYMENT_COLOR:-latest}
+    container_name: ${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}
+    restart: unless-stopped
+    volumes:
+      - seaweedfs-data:/data
+      - ./docker/seaweedfs/s3.json.template:/config/s3.json.template:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}.loadbalancer.server.port=8333"
+      - "traefik.http.middlewares.${SITE_PREFIX}-bot-provider-allowlist-${DEPLOYMENT_COLOR}.ipallowlist.sourcerange=66.249.64.0/19,66.102.0.0/20,74.125.0.0/16,173.194.0.0/16,207.126.144.0/20,192.178.4.0/22,2001:4860::/32,2404:6800::/32,2607:f8b0::/32,2800:3f0::/32,2a00:1450::/32,2c0f:fb50::/32,157.55.39.0/24,207.46.13.0/24,40.77.167.0/24,13.66.139.0/24,13.66.144.0/24,52.167.144.0/24,13.67.10.16/28,13.69.66.240/28,13.71.172.224/28,139.217.52.0/28,191.233.204.224/28,20.36.108.32/28,20.43.120.16/28,40.79.131.208/28,40.79.186.176/28,52.231.148.0/28,20.79.107.240/28,51.105.67.0/28,20.125.163.80/28,40.77.188.0/22,65.55.210.0/24,199.30.24.0/23,40.77.202.0/24,40.77.139.0/25,20.74.197.0/28,20.15.133.160/27,40.77.177.0/24,40.77.178.0/23,91.244.0.0/18,78.137.0.0/18"
+      - "traefik.http.middlewares.${SITE_PREFIX}-bot-provider-allowlist-${DEPLOYMENT_COLOR}.ipallowlist.ipstrategy.excludedips=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22,172.20.0.0/16"
+      - "traefik.http.middlewares.${SITE_PREFIX}-seaweedfs-compress-${DEPLOYMENT_COLOR}.compress=true"
+      - "traefik.http.middlewares.${SITE_PREFIX}-seaweedfs-strip-${DEPLOYMENT_COLOR}.stripprefix.prefixes=/s3"
+      - "traefik.http.middlewares.${SITE_PREFIX}-screenshots-rewrite-${DEPLOYMENT_COLOR}.replacepathregex.regex=^/images/screenshots/(.*)"
+      - "traefik.http.middlewares.${SITE_PREFIX}-screenshots-rewrite-${DEPLOYMENT_COLOR}.replacepathregex.replacement=/tools-bucket/$1"
+      - "traefik.http.middlewares.${SITE_PREFIX}-sitemaps-rewrite-${DEPLOYMENT_COLOR}.replacepathregex.regex=^/${SITEMAP_PREFIX}/sitemap/(.*)"
+      - "traefik.http.middlewares.${SITE_PREFIX}-sitemaps-rewrite-${DEPLOYMENT_COLOR}.replacepathregex.replacement=/tools-bucket/sitemap/$1"
+      - "traefik.http.routers.${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}.rule=Host(`${TRAEFIK_HOST}`) && PathPrefix(`/s3`)"
+      - "traefik.http.routers.${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}.entrypoints=websecure"
+      - "traefik.http.routers.${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}.tls=true"
+      - "traefik.http.routers.${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}.service=${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}"
+      - "traefik.http.routers.${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}.middlewares=${SITE_PREFIX}-seaweedfs-compress-${DEPLOYMENT_COLOR},${SITE_PREFIX}-seaweedfs-strip-${DEPLOYMENT_COLOR}"
+      - "traefik.http.routers.${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}.priority=1"
+      - "traefik.http.routers.${SITE_PREFIX}-screenshots-${DEPLOYMENT_COLOR}.rule=Host(`${TRAEFIK_HOST}`) && PathPrefix(`/images/screenshots/`)"
+      - "traefik.http.routers.${SITE_PREFIX}-screenshots-${DEPLOYMENT_COLOR}.entrypoints=websecure"
+      - "traefik.http.routers.${SITE_PREFIX}-screenshots-${DEPLOYMENT_COLOR}.tls=true"
+      - "traefik.http.routers.${SITE_PREFIX}-screenshots-${DEPLOYMENT_COLOR}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${SITE_PREFIX}-screenshots-${DEPLOYMENT_COLOR}.service=${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}"
+      - "traefik.http.routers.${SITE_PREFIX}-screenshots-${DEPLOYMENT_COLOR}.priority=100"
+      - "traefik.http.routers.${SITE_PREFIX}-screenshots-${DEPLOYMENT_COLOR}.middlewares=${SITE_PREFIX}-screenshots-cache-${DEPLOYMENT_COLOR},${SITE_PREFIX}-screenshots-rewrite-${DEPLOYMENT_COLOR}"
+      - "traefik.http.middlewares.${SITE_PREFIX}-screenshots-cache-${DEPLOYMENT_COLOR}.headers.customresponseheaders.Cache-Control=public, max-age=31536000, immutable"
+      - "traefik.http.routers.${SITE_PREFIX}-sitemaps-${DEPLOYMENT_COLOR}.rule=Host(`${TRAEFIK_HOST}`) && PathPrefix(`/${SITEMAP_PREFIX}/sitemap/`)"
+      - "traefik.http.routers.${SITE_PREFIX}-sitemaps-${DEPLOYMENT_COLOR}.entrypoints=websecure"
+      - "traefik.http.routers.${SITE_PREFIX}-sitemaps-${DEPLOYMENT_COLOR}.tls=true"
+      - "traefik.http.routers.${SITE_PREFIX}-sitemaps-${DEPLOYMENT_COLOR}.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.${SITE_PREFIX}-sitemaps-${DEPLOYMENT_COLOR}.service=${SITE_PREFIX}-seaweedfs-${DEPLOYMENT_COLOR}"
+      - "traefik.http.routers.${SITE_PREFIX}-sitemaps-${DEPLOYMENT_COLOR}.priority=200"
+      - "traefik.http.routers.${SITE_PREFIX}-sitemaps-${DEPLOYMENT_COLOR}.middlewares=${SITE_PREFIX}-seaweedfs-compress-${DEPLOYMENT_COLOR},${SITE_PREFIX}-sitemaps-rewrite-${DEPLOYMENT_COLOR}"
+    networks:
+      app_network:
+        aliases:
+          - seaweedfs
+    healthcheck:
+      test: ["CMD", "curl", "-fI", "http://localhost:8333/tools-bucket/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+    logging: *default-logging
+
+services:
+  traefik:
+    image: traefik:latest
+    restart: unless-stopped
+    secrets:
+      - cf
+    command:
+      # Docker provider
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=app_network"
+
+      # EntryPoints
+      - "--entrypoints.websecure.address=:8443"
+      - "--entrypoints.web.address=:8082"  # Optional: for redirecting plain HTTP
+
+      - "--entrypoints.websecure.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22,172.20.0.0/16"
+
+      # TLS + DNS Challenge (Cloudflare)
+      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.propagation.delayBeforeChecks=5"
+
+      # Redirect HTTP → HTTPS (if you want)
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--accesslog.format=common"
+      - "--accesslog.filters.statuscodes=400-599"
+      - "--accesslog.fields.defaultmode=keep"
+      - "--accesslog.fields.headers.defaultmode=drop"
+
+      # API
+      - "--api=true"
+      - "--api.dashboard=false"
+      - "--api.insecure=true"
+      - "--api.debug=false"
+
+      # API listens only inside the container
+      - "--entrypoints.traefik.address=127.0.0.1:8080"
+
+      # Misc
+      - "--ping=true"
+      - "--global.checknewversion=false"
+      - "--global.sendanonymoususage=false"
+      
+    environment:
+      CF_DNS_API_TOKEN_FILE: /run/secrets/cf  # Use token with Zone:DNS:Edit permission
+      TZ: Etc/UTC
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+
+    networks:
+      app_network: {} 
+      reverse_proxy:
+        aliases:
+          - traefik-${SITE_PREFIX}
+
+    expose:
+      - "8443"
+      - "8082"
+
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.25'
+    logging: *default-logging
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    secrets:
+      - db_password
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -d '${DB_DATABASE}' -U '${DB_USERNAME}' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    shm_size: 1gb 
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1'
+    logging: *default-logging
+
+  cert-manager:
+    build:
+      context: ./docker/cert-manager
+      dockerfile: Dockerfile
+    volumes:
+      - letsencrypt:/letsencrypt:ro
+      - haproxy-certs:/certs
+      - ./logs:/var/log
+    environment:
+      CHECK_INTERVAL: 300
+      DEBOUNCE_DELAY: 5
+      LOG_LEVEL: silent
+    networks:
+      - app_network
+    depends_on:
+      - traefik
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "ls /certs/*.pem >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging: *default-logging
+  
+  chromium:
+    build:
+      context: ./docker/selenium-chromium
+      dockerfile: Dockerfile
+    init: true
+    networks:
+      app_network:
+        aliases:
+          - chromium.internal
+    # Internal Docker network access only
+    expose:
+      - "4444"  # Selenium WebDriver
+      - "7900"  # VNC (internal containers only)
+    environment:
+      # Limit Chrome memory usage
+      SE_OPTS: --disable-dev-shm-usage --no-sandbox --disable-gpu --disable-extensions
+      JAVA_OPTS: -Xmx256m  # Limit JVM memory
+      SE_NODE_MAX_SESSIONS: 2  # Maximum 2 concurrent sessions
+    shm_size: 512m  # Shared memory for Chrome
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/wd/hub/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s  # Give container time to fully start
+    deploy:
+      mode: replicated
+      replicas: ${CHROMIUM_REPLICA_NUMBER:-1}
+      endpoint_mode: dnsrr
+      resources:
+        limits:
+          memory: 1G      # Hard memory limit
+          cpus: '1.0'     # 1 CPU core maximum
+        reservations:
+          memory: 512M    # Guaranteed allocation
+          cpus: '0.5'     # Minimum 0.5 CPU
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+    volumes:
+      - /dev/shm:/dev/shm  # Important for Chrome
+    logging: *default-logging
+
+networks:
+  app_network:
+    driver: bridge
+
+  reverse_proxy:
+    name: reverse_proxy
+    external: true
+
+volumes:
+  php_storage:
+    driver: local
+  app_logs:
+    driver: local
+  queue_logs:
+    driver: local
+  app_octane_json_blue:
+    driver: local
+  app_octane_json_green:
+    driver: local
+  seaweedfs-data:
+    driver: local
+  postgres_data:
+    driver: local
+  letsencrypt:
+    driver: local
+  haproxy-config:
+    external: true
+    name: haproxy-config
+  haproxy-certs:
+    external: true
+    name: haproxy-certs
+
+secrets:
+  app_key:
+    file: /var/secrets/${TRAEFIK_HOST}/app_key.txt
+  db_password:
+    file: /var/secrets/${TRAEFIK_HOST}/db_password.txt
+  cf:
+    file: /var/secrets/${TRAEFIK_HOST}/cf.txt

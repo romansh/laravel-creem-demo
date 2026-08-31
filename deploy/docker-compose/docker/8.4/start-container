@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+if [ "$SUPERVISOR_PHP_USER" != "root" ] && [ "$SUPERVISOR_PHP_USER" != "sail" ]; then
+    echo "You should set SUPERVISOR_PHP_USER to either 'sail' or 'root'."
+    exit 1
+fi
+
+if [ ! -z "$WWWUSER" ]; then
+    usermod -u $WWWUSER sail
+fi
+
+if [ ! -d /.composer ]; then
+    mkdir /.composer
+fi
+
+chmod -R ugo+rw /.composer
+
+APP_DIR="/var/www/html"
+STORAGE_DIR="$APP_DIR/storage"
+BOOTSTRAP_CACHE_DIR="$APP_DIR/bootstrap/cache"
+RUNTIME_DIRS=(
+    "$STORAGE_DIR"
+    "$STORAGE_DIR/app/private"
+    "$STORAGE_DIR/app/private/data"
+    "$STORAGE_DIR/framework/cache"
+    "$STORAGE_DIR/framework/sessions"
+    "$STORAGE_DIR/framework/testing"
+    "$STORAGE_DIR/framework/views"
+    "$BOOTSTRAP_CACHE_DIR"
+)
+
+for dir in "${RUNTIME_DIRS[@]}"; do
+    mkdir -p "$dir"
+done
+
+if [ -w "$APP_DIR" ] || [ "$(id -u)" -eq 0 ]; then
+    chown -R "${WWWUSER}:${WWWGROUP:-$WWWUSER}" "$STORAGE_DIR" "$BOOTSTRAP_CACHE_DIR" || true
+fi
+
+chmod -R ug+rwX "$STORAGE_DIR" "$BOOTSTRAP_CACHE_DIR" || true
+
+if [ $# -gt 0 ]; then
+    if [ "$SUPERVISOR_PHP_USER" = "root" ]; then
+        exec "$@"
+    else
+        exec gosu $WWWUSER "$@"
+    fi
+else
+    exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+fi

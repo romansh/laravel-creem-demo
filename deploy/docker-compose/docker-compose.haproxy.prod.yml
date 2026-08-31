@@ -1,0 +1,39 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  haproxy:
+    build:
+      context: ./docker/haproxy
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - haproxy-certs:/certs:ro
+      - haproxy-config:/data:ro
+    networks:
+      - reverse_proxy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "haproxy", "-f", "/data/haproxy.cfg", "-c"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+    logging: *default-logging
+
+volumes:
+  haproxy-config:
+    external: true
+    name: haproxy-config
+  haproxy-certs:
+    external: true
+    name: haproxy-certs
+networks:
+  reverse_proxy:
+    external: true
+
